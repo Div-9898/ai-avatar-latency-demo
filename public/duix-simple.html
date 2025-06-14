@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DUIX SDK Simple Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .status.info { background: rgba(33, 150, 243, 0.3); border: 1px solid #2196F3; }
+        .status.success { background: rgba(76, 175, 80, 0.3); border: 1px solid #4CAF50; }
+        .status.error { background: rgba(244, 67, 54, 0.3); border: 1px solid #F44336; }
+        .status.warning { background: rgba(255, 193, 7, 0.3); border: 1px solid #FFC107; }
+        
+        .test-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .test-section h3 {
+            color: #FFD700;
+            margin-top: 0;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        
+        .log-entry.info { color: #87CEEB; }
+        .log-entry.success { color: #90EE90; }
+        .log-entry.error { color: #FFB6C1; }
+        .log-entry.warning { color: #F0E68C; }
+        
+        .avatar-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        #duixContainer {
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 DUIX SDK Simple Test</h1>
+        
+        <div class="status info" id="statusIndicator">
+            Ready to test DUIX SDK integration
+        </div>
+        
+        <div class="test-section">
+            <h3>🔧 Test Configuration</h3>
+            <p><strong>App ID:</strong> 1377185422953811968</p>
+            <p><strong>API URL:</strong> https://api.duix.com</p>
+            <p><strong>SDK Version:</strong> 0.2.1</p>
+            <p><strong>Test Mode:</strong> Simple Debug</p>
+        </div>
+        
+        <div class="test-section">
+            <h3>🧪 Test Sequence</h3>
+            <button onclick="testStep1()">1. Test JWT Token</button>
+            <button onclick="testStep2()">2. Get Conversations</button>
+            <button onclick="testStep3()">3. Create Conversation</button>
+            <button onclick="testStep4()">4. Initialize SDK</button>
+            <button onclick="testStep5()">5. Test Known Conversation</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+        
+        <div class="avatar-container">
+            <div id="duixContainer"></div>
+        </div>
+        
+        <div class="log-container">
+            <div id="logOutput"></div>
+        </div>
+    </div>
+
+    <script src="https://h5.duix.com/duix.js?v=0.2.1"></script>
+    <script>
+        let conversationId = null;
+        let duixToken = null;
+        
+        function log(message, type = 'info') {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusIndicator = document.getElementById('statusIndicator');
+            statusIndicator.textContent = message;
+            statusIndicator.className = `status ${type}`;
+            log(`Status: ${message}`, type);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logOutput').innerHTML = '';
+            log('Logs cleared', 'info');
+        }
+        
+        async function testStep1() {
+            log('🔑 Step 1: Testing JWT Token Generation', 'info');
+            updateStatus('Testing JWT token...', 'info');
+            
+            try {
+                const response = await fetch('/api/debug/test-duix-token');
+                const data = await response.json();
+                
+                if (data.success) {
+                    duixToken = data.token_info.payload;
+                    log('✅ JWT Token test successful', 'success');
+                    log(`Token Header: ${JSON.stringify(data.token_info.header)}`, 'info');
+                    log(`Token Payload: ${JSON.stringify(data.token_info.payload)}`, 'info');
+                    updateStatus('JWT token validated successfully', 'success');
+                } else {
+                    log('❌ JWT Token test failed: ' + data.error, 'error');
+                    updateStatus('JWT token test failed', 'error');
+                }
+            } catch (error) {
+                log('❌ JWT Token test error: ' + error.message, 'error');
+                updateStatus('JWT token test error', 'error');
+            }
+        }
+        
+        async function testStep2() {
+            log('📋 Step 2: Getting Available Conversations', 'info');
+            updateStatus('Getting conversations...', 'info');
+            
+            try {
+                const response = await fetch('/api/duix/conversations');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('✅ Conversations retrieved successfully', 'success');
+                    log(`Found ${data.total} conversations`, 'info');
+                    
+                    if (data.conversations && data.conversations.length > 0) {
+                        const firstConversation = data.conversations[0];
+                        conversationId = firstConversation.id;
+                        log(`Using conversation ID: ${conversationId}`, 'success');
+                        updateStatus('Found existing conversation', 'success');
+                    } else {
+                        log('⚠️ No existing conversations found', 'warning');
+                        updateStatus('No existing conversations found', 'warning');
+                    }
+                } else {
+                    log('❌ Get conversations failed: ' + data.error, 'error');
+                    updateStatus('Failed to get conversations', 'error');
+                }
+            } catch (error) {
+                log('❌ Get conversations error: ' + error.message, 'error');
+                updateStatus('Get conversations error', 'error');
+            }
+        }
+        
+        async function testStep3() {
+            log('🎭 Step 3: Creating New Conversation', 'info');
+            updateStatus('Creating conversation...', 'info');
+            
+            try {
+                // First get a token
+                const tokenResponse = await fetch('/api/duix/sign?conversationId=test_conversation');
+                const tokenData = await tokenResponse.json();
+                
+                if (!tokenData.success) {
+                    throw new Error('Failed to get token: ' + tokenData.error);
+                }
+                
+                duixToken = tokenData.sign;
+                
+                // Then create conversation
+                const response = await fetch('/api/duix/create-conversation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        appId: '1377185422953811968',
+                        token: duixToken,
+                        avatarId: 'default',
+                        voiceId: 'default'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    conversationId = data.data.id;
+                    log('✅ Conversation created successfully', 'success');
+                    log(`Conversation ID: ${conversationId}`, 'info');
+                    log(`Conversation Name: ${data.data.conversationName}`, 'info');
+                    updateStatus('Conversation created successfully', 'success');
+                } else {
+                    log('❌ Create conversation failed: ' + data.error, 'error');
+                    updateStatus('Failed to create conversation', 'error');
+                }
+            } catch (error) {
+                log('❌ Create conversation error: ' + error.message, 'error');
+                updateStatus('Create conversation error', 'error');
+            }
+        }
+        
+        async function testStep4() {
+            log('🚀 Step 4: Initializing DUIX SDK', 'info');
+            updateStatus('Initializing DUIX SDK...', 'info');
+            
+            if (!conversationId) {
+                log('⚠️ No conversation ID available, using fallback', 'warning');
+                conversationId = '1933581339817095170'; // Known working ID from DUIX docs
+            }
+            
+            if (!duixToken) {
+                log('⚠️ No token available, getting new token', 'warning');
+                try {
+                    const tokenResponse = await fetch('/api/duix/sign?conversationId=' + conversationId);
+                    const tokenData = await tokenResponse.json();
+                    duixToken = tokenData.sign;
+                } catch (error) {
+                    log('❌ Failed to get token: ' + error.message, 'error');
+                    updateStatus('Failed to get token', 'error');
+                    return;
+                }
+            }
+            
+            try {
+                log(`Using conversation ID: ${conversationId}`, 'info');
+                log(`Using token: ${duixToken.substring(0, 20)}...`, 'info');
+                
+                const duixInstance = window.DUIX({
+                    sign: duixToken,
+                    conversationId: conversationId,
+                    container: document.getElementById('duixContainer')
+                });
+                
+                log('✅ DUIX SDK initialized successfully', 'success');
+                updateStatus('DUIX SDK initialized successfully', 'success');
+                
+                // Store for future use
+                window.duixInstance = duixInstance;
+                
+            } catch (error) {
+                log('❌ DUIX SDK initialization error: ' + error.message, 'error');
+                updateStatus('DUIX SDK initialization failed', 'error');
+            }
+        }
+        
+        async function testStep5() {
+            log('🧪 Step 5: Testing Known Working Conversation', 'info');
+            updateStatus('Testing known conversation...', 'info');
+            
+            try {
+                // Use a known working conversation ID from DUIX documentation
+                const knownConversationId = '1933581339817095170';
+                
+                // Get fresh token
+                const tokenResponse = await fetch('/api/duix/sign?conversationId=' + knownConversationId);
+                const tokenData = await tokenResponse.json();
+                
+                if (!tokenData.success) {
+                    throw new Error('Failed to get token');
+                }
+                
+                log(`Testing with known conversation ID: ${knownConversationId}`, 'info');
+                log(`Using fresh token: ${tokenData.sign.substring(0, 20)}...`, 'info');
+                
+                const duixInstance = window.DUIX({
+                    sign: tokenData.sign,
+                    conversationId: knownConversationId,
+                    container: document.getElementById('duixContainer')
+                });
+                
+                log('✅ Known conversation test successful', 'success');
+                updateStatus('Known conversation test successful', 'success');
+                
+                // Store for future use
+                window.duixInstance = duixInstance;
+                conversationId = knownConversationId;
+                duixToken = tokenData.sign;
+                
+            } catch (error) {
+                log('❌ Known conversation test error: ' + error.message, 'error');
+                updateStatus('Known conversation test failed', 'error');
+            }
+        }
+        
+        // Auto-start basic tests
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🎯 DUIX SDK Simple Test initialized', 'info');
+            log('Click the test buttons to run diagnostics', 'info');
+            log('Check browser console for additional debug information', 'info');
+        });
+        
+        // Enhanced error handling
+        window.addEventListener('error', function(event) {
+            log('❌ Global error: ' + event.error.message, 'error');
+        });
+        
+        window.addEventListener('unhandledrejection', function(event) {
+            log('❌ Unhandled promise rejection: ' + event.reason, 'error');
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DUIX AI Avatar - Real-time Chat</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    #avatar {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    
+    .status-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 1000;
+      max-width: 300px;
+    }
+    
+    .subtitle {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 12px;
+      text-align: center;
+      visibility: hidden;
+      backdrop-filter: blur(10px);
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .subtitle:empty {
+      display: none;
+    }
+    
+    .subtitle.visible {
+      visibility: visible;
+    }
+    
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 1000;
+    }
+    
+    .control-btn {
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+    
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 1);
+      transform: scale(1.1);
+    }
+    
+    .error-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(220, 53, 69, 0.9);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    
+    .loading-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 18px;
+      text-align: center;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <script src="https://cdn.guiji.ai/duix/sdk/0.2.1/duix.js"></script>
+</head>
+<body>
+  <div id="avatar" class="container">
+    <div class="loading-spinner" id="loadingSpinner">
+      <div class="spinner"></div>
+      <div>Loading DUIX Avatar...</div>
+    </div>
+  </div>
+  
+  <div class="status-overlay" id="statusOverlay">
+    <div><strong>🎭 DUIX Avatar Status</strong></div>
+    <div id="avatarStatus">Initializing...</div>
+    <div id="conversationInfo"></div>
+    <div id="connectionStatus"></div>
+  </div>
+  
+  <div class="subtitle" id="subtitle"></div>
+  
+  <div class="controls">
+    <button class="control-btn" id="muteBtn" title="Toggle Mute">🔊</button>
+    <button class="control-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
+    <button class="control-btn" id="backBtn" title="Back to Main" onclick="window.location.href='/'">🏠</button>
+  </div>
+
+  <script type="module">
+    console.log('🎭 DUIX Avatar Page Loading...');
+    
+    // Read sign and conversationId from URL parameters
+    const qs = new URLSearchParams(location.search);
+    const sign = qs.get('sign');
+    const conversationId = qs.get('cid') || qs.get('conversationId');
+    
+    const statusElement = document.getElementById('avatarStatus');
+    const conversationElement = document.getElementById('conversationInfo');
+    const connectionElement = document.getElementById('connectionStatus');
+    const loadingElement = document.getElementById('loadingSpinner');
+    const subtitleElement = document.getElementById('subtitle');
+    
+    function updateStatus(status) {
+      if (statusElement) statusElement.textContent = status;
+      console.log('🎭 Status:', status);
+    }
+    
+    function updateConversationInfo(info) {
+      if (conversationElement) conversationElement.innerHTML = info;
+    }
+    
+    function updateConnectionStatus(status) {
+      if (connectionElement) connectionElement.textContent = status;
+    }
+    
+    function showSubtitle(text) {
+      if (subtitleElement) {
+        subtitleElement.textContent = text;
+        subtitleElement.classList.add('visible');
+        setTimeout(() => {
+          subtitleElement.classList.remove('visible');
+        }, 3000);
+      }
+    }
+    
+    function showError(message) {
+      document.body.innerHTML = `
+        <div class="error-message">
+          <h3>❌ Error</h3>
+          <p>${message}</p>
+          <button onclick="window.location.href='/'" style="margin-top: 15px; padding: 10px 20px; background: white; color: #dc3545; border: none; border-radius: 5px; cursor: pointer;">
+            🏠 Back to Main
+          </button>
+        </div>
+      `;
+    }
+    
+    // Validate required parameters
+    if (!sign || !conversationId) {
+      console.error('❌ Missing required parameters:', { sign: !!sign, conversationId: !!conversationId });
+      showError('Missing sign or conversationId parameters. Please go back and initialize the avatar properly.');
+      throw new Error('Missing required parameters');
+    }
+    
+    console.log('✅ Parameters validated:', { 
+      sign: sign.substring(0, 20) + '...', 
+      conversationId 
+    });
+    
+    updateStatus('Connecting to DUIX...');
+    updateConversationInfo(`Session: ${conversationId}`);
+    updateConnectionStatus('🔄 Connecting...');
+    
+    try {
+      // Initialize DUIX SDK
+      const duix = new window.DUIX();
+      let avatarStarted = false;
+      
+      // Enhanced error handling
+      duix.on('error', (error) => {
+        console.error('🚨 DUIX Error:', error);
+        updateStatus('Error occurred');
+        updateConnectionStatus('❌ Connection failed');
+        showError(`DUIX Avatar Error: ${error.message || error}`);
+      });
+      
+      // Connection status events
+      duix.on('connecting', () => {
+        console.log('🔄 DUIX Connecting...');
+        updateStatus('Connecting...');
+        updateConnectionStatus('🔄 Connecting to DUIX...');
+      });
+      
+      duix.on('connected', () => {
+        console.log('✅ DUIX Connected');
+        updateStatus('Connected');
+        updateConnectionStatus('✅ Connected to DUIX');
+      });
+      
+      duix.on('disconnected', () => {
+        console.log('🔌 DUIX Disconnected');
+        updateStatus('Disconnected');
+        updateConnectionStatus('🔌 Disconnected');
+      });
+      
+      // Avatar lifecycle events
+      const startAvatar = () => {
+        if (!avatarStarted) {
+          console.log('🚀 Starting DUIX Avatar...');
+          updateStatus('Starting avatar...');
+          duix.start({ openAsr: true }).then(() => {
+            console.log('✅ DUIX Avatar started successfully');
+            avatarStarted = true;
+            updateStatus('Avatar ready');
+            updateConnectionStatus('✅ Avatar active');
+            showSubtitle('Avatar ready! Start speaking...');
+            
+            // Hide loading spinner
+            if (loadingElement) {
+              loadingElement.style.display = 'none';
+            }
+          }).catch((error) => {
+            console.error('❌ Failed to start avatar:', error);
+            updateStatus('Failed to start');
+            updateConnectionStatus('❌ Start failed');
+            showError(`Failed to start avatar: ${error.message || error}`);
+          });
+        }
+      };
+      
+      // Handle initialization success
+      duix.on('initialSuccess', () => {
+        console.log('✅ DUIX Initial Success');
+        updateStatus('Initialized');
+        startAvatar();
+      });
+      
+      // Legacy event name support
+      duix.on('intialSucccess', () => {
+        console.log('✅ DUIX Initial Success (legacy)');
+        updateStatus('Initialized');
+        startAvatar();
+      });
+      
+      // Speech recognition events
+      duix.on('asrResult', (result) => {
+        console.log('🎤 Speech recognized:', result);
+        if (result.text) {
+          showSubtitle(`You said: ${result.text}`);
+        }
+      });
+      
+      // Avatar speaking events
+      duix.on('speakSection', (data) => {
+        console.log('🗣️ Avatar speaking:', data.text);
+        if (data.text) {
+          showSubtitle(data.text);
+          updateStatus('Speaking...');
+        }
+      });
+      
+      duix.on('speakStart', () => {
+        console.log('🎭 Avatar started speaking');
+        updateStatus('Speaking...');
+      });
+      
+      duix.on('speakEnd', () => {
+        console.log('🎭 Avatar finished speaking');
+        updateStatus('Listening...');
+      });
+      
+      // Initialize DUIX with our parameters
+      console.log('🔧 Initializing DUIX SDK...');
+      await duix.init({
+        sign: sign,
+        containerLable: '#avatar', // Note: DUIX uses 'containerLable' (with typo)
+        conversationId: conversationId,
+        platform: 'duix.com'
+      });
+      
+      console.log('✅ DUIX SDK initialized successfully');
+      
+      // Fallback: Start avatar after 1 second if not started
+      setTimeout(() => {
+        if (!avatarStarted && duix.isStarted && !duix.isStarted()) {
+          console.log('⏰ Fallback: Starting avatar after timeout...');
+          startAvatar();
+        }
+      }, 1000);
+      
+      // Control button handlers
+      document.getElementById('muteBtn')?.addEventListener('click', () => {
+        // Toggle mute (implement based on DUIX API)
+        console.log('🔇 Mute toggled');
+        showSubtitle('Mute toggled');
+      });
+      
+      document.getElementById('fullscreenBtn')?.addEventListener('click', () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen();
+        }
+      });
+      
+    } catch (error) {
+      console.error('🚨 Failed to initialize DUIX:', error);
+      updateStatus('Initialization failed');
+      updateConnectionStatus('❌ Init failed');
+      showError(`Failed to initialize DUIX: ${error.message || error}`);
+    }
+  </script>
+</body>
+</html> 

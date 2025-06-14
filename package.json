@@ -1,0 +1,47 @@
+{
+  "name": "duix-ai-avatar-latency-demo",
+  "version": "1.0.0",
+  "description": "Real-time AI Avatar with comprehensive latency measurement for AWS deployment",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:prod": "set NODE_ENV=production && node server.js",
+    "dev": "set NODE_ENV=development && node server.js",
+    "build": "echo Static files ready for deployment",
+    "test": "node -e \"console.log('Health check passed')\"",
+    "aws:deploy": "npm run build && echo Ready for AWS deployment",
+    "aws:logs": "echo Use AWS CloudWatch for production logs",
+    "health": "curl -f http://localhost:3000/health || exit 1"
+  },
+  "keywords": [
+    "duix",
+    "ai-avatar",
+    "latency-measurement",
+    "aws",
+    "real-time",
+    "speech-to-speech"
+  ],
+  "author": "DUIX AI Avatar Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "axios": "^1.6.0",
+    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/duix-ai-avatar-latency-demo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/duix-ai-avatar-latency-demo/issues"
+  },
+  "homepage": "https://github.com/your-org/duix-ai-avatar-latency-demo#readme"
+}

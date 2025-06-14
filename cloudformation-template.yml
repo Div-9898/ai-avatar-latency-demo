@@ -1,0 +1,327 @@
+# ✅ AWS CloudFormation Template for DUIX AI Avatar Deployment
+# Complete infrastructure as code for production deployment
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DUIX AI Avatar with Real-Time Latency Measurement - Production Infrastructure'
+
+Parameters:
+  ApplicationName:
+    Type: String
+    Default: 'duix-ai-avatar-latency'
+    Description: 'Name of the application'
+  
+  Environment:
+    Type: String
+    Default: 'production'
+    AllowedValues: ['development', 'staging', 'production']
+    Description: 'Deployment environment'
+  
+  DuixAppId:
+    Type: String
+    Default: '1377185422953811968'
+    Description: 'DUIX Application ID'
+  
+  DuixAppKey:
+    Type: String
+    NoEcho: true
+    Default: '4f3725b2-7d48-4ea7-8640-d1a11eb00f8c'
+    Description: 'DUIX Application Key (sensitive)'
+  
+  SourceCodeUrl:
+    Type: String
+    Default: 'https://github.com/your-org/duix-ai-avatar-latency-demo'
+    Description: 'GitHub repository URL for source code'
+  
+  MinInstances:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 5
+    Description: 'Minimum number of instances'
+  
+  MaxInstances:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 100
+    Description: 'Maximum number of instances'
+
+Resources:
+  # ============================================================================
+  # IAM Roles and Policies
+  # ============================================================================
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ApplicationName}-apprunner-instance-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+        - PolicyName: DuixAvatarPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: '*'
+
+  AppRunnerAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ApplicationName}-apprunner-access-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AppRunnerServicePolicyForECRAccess
+
+  # ============================================================================
+  # Secrets Manager for Sensitive Configuration
+  # ============================================================================
+  DuixAppKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ApplicationName}/duix-app-key'
+      Description: 'DUIX Application Key for AI Avatar service'
+      SecretString: !Sub |
+        {
+          "DUIX_APP_KEY": "${DuixAppKey}",
+          "DUIX_APP_ID": "${DuixAppId}"
+        }
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # CloudWatch Log Group
+  # ============================================================================
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apprunner/${ApplicationName}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # AWS App Runner Service
+  # ============================================================================
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Sub '${ApplicationName}-service'
+      SourceConfiguration:
+        AutoDeploymentsEnabled: true
+        CodeRepository:
+          RepositoryUrl: !Ref SourceCodeUrl
+          SourceCodeVersion:
+            Type: BRANCH
+            Value: main
+          CodeConfiguration:
+            ConfigurationSource: CONFIGURATION_FILE
+            CodeConfigurationValues:
+              Runtime: NODEJS_18
+              BuildCommand: 'npm ci --only=production --no-audit --no-fund'
+              StartCommand: 'node server.js'
+              RuntimeEnvironmentVariables:
+                - Name: NODE_ENV
+                  Value: production
+                - Name: PORT
+                  Value: '3000'
+                - Name: HOST
+                  Value: '0.0.0.0'
+                - Name: ENABLE_SSL_VALIDATION
+                  Value: 'true'
+                - Name: AWS_REGION
+                  Value: !Ref AWS::Region
+                - Name: DUIX_APP_ID
+                  Value: !Ref DuixAppId
+              RuntimeEnvironmentSecrets:
+                - Name: DUIX_APP_KEY
+                  Value: !Sub '${DuixAppKeySecret}:DUIX_APP_KEY::'
+        AccessRoleArn: !GetAtt AppRunnerAccessRole.Arn
+      InstanceConfiguration:
+        Cpu: '0.25 vCPU'
+        Memory: '0.5 GB'
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      AutoScalingConfigurationArn: !Ref AutoScalingConfiguration
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /health
+        Interval: 30
+        Timeout: 10
+        HealthyThreshold: 2
+        UnhealthyThreshold: 3
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'DUIX AI Avatar'
+
+  # ============================================================================
+  # Auto Scaling Configuration
+  # ============================================================================
+  AutoScalingConfiguration:
+    Type: AWS::AppRunner::AutoScalingConfiguration
+    Properties:
+      AutoScalingConfigurationName: !Sub '${ApplicationName}-autoscaling'
+      MinSize: !Ref MinInstances
+      MaxSize: !Ref MaxInstances
+      MaxConcurrency: 100
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # CloudWatch Alarms for Monitoring
+  # ============================================================================
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ApplicationName}-high-cpu'
+      AlarmDescription: 'High CPU utilization detected'
+      MetricName: CPUUtilization
+      Namespace: AWS/AppRunner
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref AppRunnerService
+      TreatMissingData: notBreaching
+
+  HighMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ApplicationName}-high-memory'
+      AlarmDescription: 'High memory utilization detected'
+      MetricName: MemoryUtilization
+      Namespace: AWS/AppRunner
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref AppRunnerService
+      TreatMissingData: notBreaching
+
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ApplicationName}-high-latency'
+      AlarmDescription: 'High response latency detected'
+      MetricName: RequestLatency
+      Namespace: AWS/AppRunner
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 2000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref AppRunnerService
+      TreatMissingData: notBreaching
+
+  # ============================================================================
+  # CloudWatch Dashboard
+  # ============================================================================
+  ApplicationDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ApplicationName}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/AppRunner", "RequestLatency", "ServiceName", "${AppRunnerService}" ],
+                  [ ".", "2xxStatusResponses", ".", "." ],
+                  [ ".", "4xxStatusResponses", ".", "." ],
+                  [ ".", "5xxStatusResponses", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Application Performance"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/AppRunner", "CPUUtilization", "ServiceName", "${AppRunnerService}" ],
+                  [ ".", "MemoryUtilization", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Resource Utilization"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  ApplicationURL:
+    Description: 'URL of the deployed DUIX AI Avatar application'
+    Value: !Sub 'https://${AppRunnerService.ServiceUrl}'
+    Export:
+      Name: !Sub '${ApplicationName}-url'
+
+  ServiceArn:
+    Description: 'ARN of the App Runner service'
+    Value: !Ref AppRunnerService
+    Export:
+      Name: !Sub '${ApplicationName}-service-arn'
+
+  LogGroupName:
+    Description: 'CloudWatch Log Group name'
+    Value: !Ref ApplicationLogGroup
+    Export:
+      Name: !Sub '${ApplicationName}-log-group'
+
+  DashboardURL:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ApplicationName}-dashboard'
+    Export:
+      Name: !Sub '${ApplicationName}-dashboard-url' 

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="expires" content="0">
+    <title>DUIX AI Avatar - Real-Time Speech</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- ✅ PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DUIX Avatar">
+    <!-- ✅ Official DUIX SDK -->
+    <script src="https://cdn.guiji.ai/duix/sdk/0.2.1/duix.js"></script>
+</head>
+<body>
+    <!-- ✅ AWS-Ready DUIX Container -->
+    <div id="duix-container" class="duix-main-container"></div>
+    
+    <!-- ✅ Voice Status Overlay -->
+    <div class="voice-status-overlay" id="voiceStatusOverlay">
+        <div class="voice-indicator" id="voiceIndicator">
+            <i class="fas fa-microphone"></i>
+            <span id="voiceStatusText">Ready to listen...</span>
+        </div>
+    </div>
+
+    <!-- ✅ Subtitle Display for Avatar Speech -->
+    <div class="subtitle" id="subtitleDisplay"></div>
+
+    <!-- ✅ Real-Time Latency Display -->
+    <div class="latency-overlay" id="latencyOverlay" style="display: none;">
+        <div class="latency-display">
+            <div class="latency-header">
+                <i class="fas fa-stopwatch"></i>
+                <span>Real-Time Latency</span>
+            </div>
+            <div class="latency-metrics">
+                <div class="latency-metric">
+                    <span class="metric-label">Current</span>
+                    <span class="metric-value" id="currentLatencyDisplay">0ms</span>
+                </div>
+                <div class="latency-metric">
+                    <span class="metric-label">Average</span>
+                    <span class="metric-value" id="averageLatencyDisplay">0ms</span>
+                </div>
+                <div class="latency-metric">
+                    <span class="metric-label">Best</span>
+                    <span class="metric-value" id="bestLatencyDisplay">∞</span>
+                                </div>
+                <div class="latency-metric">
+                    <span class="metric-label">Count</span>
+                    <span class="metric-value" id="countLatencyDisplay">0</span>
+                                </div>
+                            </div>
+            <div class="latency-breakdown" id="latencyBreakdown">
+                <div class="breakdown-item">
+                    <span class="breakdown-label">ASR:</span>
+                    <span class="breakdown-value" id="asrLatencyDisplay">-</span>
+                </div>
+                <div class="breakdown-item">
+                    <span class="breakdown-label">AI:</span>
+                    <span class="breakdown-value" id="aiLatencyDisplay">-</span>
+                </div>
+                <div class="breakdown-item">
+                    <span class="breakdown-label">TTS:</span>
+                    <span class="breakdown-value" id="ttsLatencyDisplay">-</span>
+                        </div>
+                            </div>
+                        </div>
+                    </div>
+
+    <!-- ✅ Configuration Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-robot"></i> DUIX AI Avatar</h2>
+                <p>Real-Time Speech-to-Speech AI Avatar</p>
+            </div>
+            
+            <div class="config-section">
+                <div class="input-group">
+                    <label for="conversationId">Conversation ID:</label>
+                    <input 
+                        class="input" 
+                        id="conversationId" 
+                        placeholder="Enter conversation ID" 
+                        value="1933581339817095170"
+                    />
+                </div>
+                
+                <div class="input-group">
+                    <label for="avatarSelect">Avatar Model:</label>
+                    <select id="avatarSelect" class="input">
+                        <option value="108">Zhang San (Professional)</option>
+                        <option value="109">Li Si (Friendly)</option>
+                        <option value="110">Wang Wu (Casual)</option>
+                        </select>
+                    </div>
+
+                <div class="feature-toggles">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="enableASR" checked>
+                        <span class="checkmark"></span>
+                        Enable Voice Recognition
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="enableSubtitles" checked>
+                        <span class="checkmark"></span>
+                        Show Subtitles
+                    </label>
+                </div>
+                
+                <button id="startAvatar" class="btn btn-primary">
+                    <i class="fas fa-play"></i> Start Avatar
+                </button>
+            </div>
+
+            <div class="status-section">
+                <div class="status-item">
+                    <span class="status-label">Connection:</span>
+                    <span id="connectionStatus" class="status-value">Disconnected</span>
+                        </div>
+                <div class="status-item">
+                    <span class="status-label">Latency:</span>
+                    <span id="latencyStatus" class="status-value">0ms</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ Control Panel -->
+    <div class="control-panel" id="controlPanel" style="display: none;">
+        <button id="toggleMute" class="control-btn">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button id="toggleFullscreen" class="control-btn">
+            <i class="fas fa-expand"></i>
+        </button>
+        <button id="toggleLatency" class="control-btn">
+            <i class="fas fa-stopwatch"></i>
+        </button>
+        <button id="stopAvatar" class="control-btn stop-btn">
+            <i class="fas fa-stop"></i>
+        </button>
+        </div>
+
+    <!-- ✅ Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="spinner"></div>
+            <p id="loadingText">Initializing DUIX Avatar...</p>
+            <div class="loading-progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ Error Display -->
+    <div id="errorDisplay" class="error-display" style="display: none;">
+        <div class="error-content">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Connection Error</h3>
+            <p id="errorMessage">Failed to connect to DUIX service</p>
+            <button id="retryConnection" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Retry
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        // ✅ AWS-Ready DUIX Avatar Implementation
+        class AWSReadyDUIXAvatar {
+            constructor() {
+                this.duix = null;
+                this.isInitialized = false;
+                this.isStarted = false;
+                this.currentConversationId = null;
+                this.latencyStartTime = null;
+                this.connectionRetries = 0;
+                this.maxRetries = 3;
+                
+                // ✅ Latency Tracking
+                this.latencyMetrics = {
+                    speechToSpeechLatencies: [],
+                    asrLatencies: [],
+                    ttsLatencies: [],
+                    totalLatencies: [],
+                    networkLatencies: [],
+                    currentMeasurement: null
+                };
+                
+                // Start network latency monitoring
+                this.startNetworkLatencyMonitoring();
+                
+                this.init();
+            }
+
+            async init() {
+                try {
+                    // Initialize DUIX SDK
+                    this.duix = new window.DUIX();
+                    this.setupEventListeners();
+                    this.bindUIEvents();
+                    
+                    console.log('✅ DUIX Avatar initialized for AWS deployment');
+                } catch (error) {
+                    console.error('❌ Failed to initialize DUIX Avatar:', error);
+                    this.showError('Failed to initialize avatar system');
+                }
+            }
+
+            setupEventListeners() {
+                // ✅ DUIX SDK Event Handlers
+                this.duix.on('error', (error) => {
+                    console.error('DUIX Error:', error);
+                    this.showError(`Avatar error: ${error.message || error}`);
+                });
+
+                this.duix.on('initialSuccess', () => {
+                    console.log('✅ DUIX Avatar initialized successfully');
+                    this.isInitialized = true;
+                    this.updateConnectionStatus('Connected');
+                    this.startAvatar();
+                });
+
+                // Handle legacy event name
+                this.duix.on('intialSucccess', () => {
+                    console.log('✅ DUIX Avatar initialized (legacy event)');
+                    this.isInitialized = true;
+                    this.updateConnectionStatus('Connected');
+                    this.startAvatar();
+                });
+
+                // ✅ ASR Events for Latency Measurement
+                this.duix.on('asrStart', (data) => {
+                    console.log('🎤 ASR Started', data);
+                    // User started speaking - start measuring speech-to-speech latency
+                    this.latencyMetrics.currentMeasurement = {
+                        userSpeechStart: Date.now(),
+                        asrStart: Date.now(),
+                        sessionId: data?.sessionId || data?.params?.sessionId || this.currentConversationId || 'unknown'
+                    };
+                });
+
+                this.duix.on('asrData', (data) => {
+                    const text = data?.text || data?.params?.text || 'undefined';
+                    console.log('🎤 ASR Data:', text);
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.asrData = Date.now();
+                        this.latencyMetrics.currentMeasurement.recognizedText = text;
+                    }
+                });
+
+                this.duix.on('asrStop', (data) => {
+                    const recognizedText = data?.text || data?.params?.text || 'undefined';
+                    console.log('🎤 ASR Stopped:', recognizedText);
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.asrEnd = Date.now();
+                        this.latencyMetrics.currentMeasurement.finalText = recognizedText;
+                        
+                        // Calculate ASR latency
+                        const asrLatency = this.latencyMetrics.currentMeasurement.asrEnd - this.latencyMetrics.currentMeasurement.asrStart;
+                        this.latencyMetrics.asrLatencies.push(asrLatency);
+                        console.log(`⏱️ ASR Latency: ${asrLatency}ms`);
+                    }
+                    this.updateVoiceStatus(`You said: "${recognizedText}"`, 'processing');
+                });
+
+                // ✅ TTS Events for Latency Measurement
+                this.duix.on('ttsSpeakStart', (data) => {
+                    console.log('🔊 TTS Started');
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.ttsStart = Date.now();
+                    }
+                });
+
+                this.duix.on('ttsSpeakSection', (data) => {
+                    console.log('🔊 TTS Section:', data.text);
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.ttsFirstAudio = Date.now();
+                        this.latencyMetrics.currentMeasurement.responseText = data.text;
+                    }
+                });
+
+                this.duix.on('ttsSpeakEnd', (data) => {
+                    console.log('🔊 TTS Ended');
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.ttsEnd = Date.now();
+                        
+                        // Calculate TTS latency
+                        const ttsLatency = this.latencyMetrics.currentMeasurement.ttsEnd - this.latencyMetrics.currentMeasurement.ttsStart;
+                        this.latencyMetrics.ttsLatencies.push(ttsLatency);
+                        console.log(`⏱️ TTS Latency: ${ttsLatency}ms`);
+                    }
+                });
+
+                // ✅ Avatar Speaking Events
+                this.duix.on('speakSection', (data) => {
+                    console.log('🗣️ Avatar speaking:', data.text);
+                    this.showSubtitle(data.text);
+                    this.updateVoiceStatus('Avatar speaking...', 'speaking');
+                    
+                    // Mark when avatar actually starts speaking
+                    if (this.latencyMetrics.currentMeasurement && !this.latencyMetrics.currentMeasurement.avatarSpeakStart) {
+                        this.latencyMetrics.currentMeasurement.avatarSpeakStart = Date.now();
+                        
+                        // Calculate total speech-to-speech latency
+                        const totalLatency = this.latencyMetrics.currentMeasurement.avatarSpeakStart - this.latencyMetrics.currentMeasurement.userSpeechStart;
+                        this.latencyMetrics.totalLatencies.push(totalLatency);
+                        this.latencyMetrics.speechToSpeechLatencies.push(totalLatency);
+                        
+                        console.log(`🎯 Speech-to-Speech Latency: ${totalLatency}ms`);
+                        this.updateLatency(totalLatency);
+                        this.displayLatencyBreakdown();
+                    }
+                });
+
+                this.duix.on('speakEnd', () => {
+                    console.log('🔇 Avatar finished speaking');
+                    this.hideSubtitle();
+                    this.updateVoiceStatus('Ready to listen...', 'ready');
+                    
+                    // Complete the measurement cycle
+                    if (this.latencyMetrics.currentMeasurement) {
+                        this.latencyMetrics.currentMeasurement.avatarSpeakEnd = Date.now();
+                        this.latencyMetrics.currentMeasurement = null; // Reset for next measurement
+                    }
+                });
+
+                // ✅ Legacy events for compatibility
+                this.duix.on('asrResult', (data) => {
+                    console.log('🎤 Voice recognized (legacy):', data.text);
+                });
+
+                this.duix.on('conversationStart', () => {
+                    console.log('💬 Conversation started');
+                    this.resetLatencyStats();
+                });
+
+                this.duix.on('conversationEnd', () => {
+                    console.log('💬 Conversation ended');
+                    this.displayFinalLatencyStats();
+                });
+            }
+
+            bindUIEvents() {
+                // Start Avatar Button
+                document.getElementById('startAvatar').addEventListener('click', () => {
+                    this.initializeAvatar();
+                });
+
+                // Control Panel Buttons
+                document.getElementById('toggleMute').addEventListener('click', () => {
+                    this.toggleMute();
+                });
+
+                document.getElementById('toggleFullscreen').addEventListener('click', () => {
+                    this.toggleFullscreen();
+                });
+
+                document.getElementById('toggleLatency').addEventListener('click', () => {
+                    this.toggleLatencyDisplay();
+                });
+
+                document.getElementById('stopAvatar').addEventListener('click', () => {
+                    this.stopAvatar();
+                });
+
+                // Retry Connection
+                document.getElementById('retryConnection').addEventListener('click', () => {
+                    this.retryConnection();
+                });
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space' && this.isStarted) {
+                        e.preventDefault();
+                        this.toggleMute();
+                    }
+                    if (e.key === 'Escape' && this.isStarted) {
+                        this.toggleFullscreen();
+                    }
+                    if (e.code === 'KeyL' && e.ctrlKey) {
+                        e.preventDefault();
+                        this.toggleLatencyDisplay();
+                    }
+                });
+            }
+
+            async initializeAvatar() {
+                const conversationId = document.getElementById('conversationId').value.trim();
+                
+                if (!conversationId) {
+                    alert('Please enter a conversation ID');
+                    return;
+                }
+
+                this.currentConversationId = conversationId;
+                this.showLoading('Fetching authentication token...');
+
+                try {
+                    // ✅ Get JWT token from our AWS-ready backend
+                    const signResponse = await fetch(
+                        `/api/duix/sign?conversationId=${encodeURIComponent(conversationId)}`
+                    );
+
+                    if (!signResponse.ok) {
+                        throw new Error(`Authentication failed: ${signResponse.status}`);
+                    }
+
+                    const signData = await signResponse.json();
+                    
+                    if (!signData.success || !signData.sign) {
+                        throw new Error('Invalid authentication response');
+                    }
+
+                    this.showLoading('Initializing avatar...');
+
+                    // ✅ Initialize DUIX with proper AWS configuration
+                    await this.duix.init({
+                        sign: signData.sign,
+                        containerLable: '#duix-container', // Note: DUIX SDK uses 'containerLable' (typo in their API)
+                        conversationId: conversationId,
+                        platform: 'duix.com',
+                        // AWS-optimized settings
+                        timeout: 30000,
+                        retryCount: 3,
+                        enableLog: !this.isProduction(),
+                        // Voice settings
+                        openAsr: document.getElementById('enableASR').checked,
+                        asrLang: 'zh-CN',
+                        // Performance settings for AWS
+                        lowLatency: true,
+                        adaptiveBitrate: true
+                    });
+
+                    this.hideLoading();
+                    this.hideConfigModal();
+                    this.showControlPanel();
+
+                } catch (error) {
+                    console.error('❌ Avatar initialization failed:', error);
+                    this.hideLoading();
+                    this.showError(`Failed to initialize avatar: ${error.message}`);
+                }
+            }
+
+            async startAvatar() {
+                if (!this.duix || this.isStarted) return;
+
+                try {
+                    console.log('🚀 Starting DUIX Avatar...');
+                    
+                    await this.duix.start({ 
+                        openAsr: document.getElementById('enableASR').checked 
+                    });
+                    
+                    this.isStarted = true;
+                    this.updateConnectionStatus('Active');
+                    this.updateVoiceStatus('Ready to listen...', 'ready');
+                    
+                    console.log('✅ DUIX Avatar started successfully');
+
+                    // Auto-retry mechanism for AWS resilience
+                    setTimeout(() => {
+                        if (!this.duix.isStarted?.()) {
+                            console.log('🔄 Auto-retrying avatar start...');
+                            this.startAvatar();
+                        }
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('❌ Failed to start avatar:', error);
+                    this.showError(`Failed to start avatar: ${error.message}`);
+                }
+            }
+
+            stopAvatar() {
+                if (this.duix && this.isStarted) {
+                    try {
+                        // Stop network latency monitoring
+                        this.stopNetworkLatencyMonitoring();
+                        
+                        // Display final stats before stopping
+                        this.displayFinalLatencyStats();
+                        
+                        this.duix.stop?.();
+                        this.isStarted = false;
+                        this.updateConnectionStatus('Stopped');
+                        this.updateVoiceStatus('Avatar stopped', 'stopped');
+                        this.hideControlPanel();
+                        this.showConfigModal();
+                        console.log('🛑 Avatar stopped');
+                    } catch (error) {
+                        console.error('❌ Error stopping avatar:', error);
+                    }
+                }
+            }
+
+            toggleMute() {
+                if (!this.duix || !this.isStarted) return;
+
+                try {
+                    const isMuted = this.duix.isMuted?.() || false;
+                    
+                    if (isMuted) {
+                        this.duix.unmute?.();
+                        this.updateVoiceStatus('Microphone enabled', 'ready');
+                        document.getElementById('toggleMute').innerHTML = '<i class="fas fa-microphone"></i>';
+                    } else {
+                        this.duix.mute?.();
+                        this.updateVoiceStatus('Microphone muted', 'muted');
+                        document.getElementById('toggleMute').innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                    }
+                } catch (error) {
+                    console.error('❌ Error toggling mute:', error);
+                }
+            }
+
+            toggleFullscreen() {
+                const container = document.getElementById('duix-container');
+                
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen?.() || 
+                    container.webkitRequestFullscreen?.() || 
+                    container.msRequestFullscreen?.();
+                    
+                    document.getElementById('toggleFullscreen').innerHTML = '<i class="fas fa-compress"></i>';
+                } else {
+                    document.exitFullscreen?.() || 
+                    document.webkitExitFullscreen?.() || 
+                    document.msExitFullscreen?.();
+                    
+                    document.getElementById('toggleFullscreen').innerHTML = '<i class="fas fa-expand"></i>';
+                }
+            }
+
+            retryConnection() {
+                if (this.connectionRetries >= this.maxRetries) {
+                    this.showError('Maximum retry attempts reached. Please refresh the page.');
+                    return;
+                }
+
+                this.connectionRetries++;
+                this.hideError();
+                this.initializeAvatar();
+            }
+
+            // ✅ UI Helper Methods
+            showLoading(message) {
+                document.getElementById('loadingText').textContent = message;
+                document.getElementById('loadingOverlay').style.display = 'flex';
+            }
+
+            hideLoading() {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+
+            showError(message) {
+                document.getElementById('errorMessage').textContent = message;
+                document.getElementById('errorDisplay').style.display = 'flex';
+            }
+
+            hideError() {
+                document.getElementById('errorDisplay').style.display = 'none';
+            }
+
+            showConfigModal() {
+                document.getElementById('configModal').style.display = 'flex';
+            }
+
+            hideConfigModal() {
+                document.getElementById('configModal').style.display = 'none';
+            }
+
+            showControlPanel() {
+                document.getElementById('controlPanel').style.display = 'flex';
+            }
+
+            hideControlPanel() {
+                document.getElementById('controlPanel').style.display = 'none';
+            }
+
+            showSubtitle(text) {
+                if (document.getElementById('enableSubtitles').checked) {
+                    const subtitle = document.getElementById('subtitleDisplay');
+                    subtitle.textContent = text;
+                    subtitle.style.visibility = 'visible';
+                }
+            }
+
+            hideSubtitle() {
+                const subtitle = document.getElementById('subtitleDisplay');
+                subtitle.style.visibility = 'hidden';
+                setTimeout(() => {
+                    subtitle.textContent = '';
+                }, 500);
+            }
+
+            updateConnectionStatus(status) {
+                document.getElementById('connectionStatus').textContent = status;
+                
+                const statusColors = {
+                    'Disconnected': '#e74c3c',
+                    'Connected': '#f39c12',
+                    'Active': '#27ae60',
+                    'Stopped': '#95a5a6'
+                };
+                
+                document.getElementById('connectionStatus').style.color = statusColors[status] || '#333';
+            }
+
+            updateLatency(latency) {
+                document.getElementById('latencyStatus').textContent = `${latency}ms`;
+                
+                const latencyColors = {
+                    excellent: '#27ae60',  // < 300ms
+                    good: '#2ecc71',       // 300-500ms
+                    fair: '#f39c12',       // 500-1000ms
+                    poor: '#e67e22',       // 1000-2000ms
+                    bad: '#e74c3c'         // > 2000ms
+                };
+                
+                let color = latencyColors.excellent;
+                if (latency > 2000) color = latencyColors.bad;
+                else if (latency > 1000) color = latencyColors.poor;
+                else if (latency > 500) color = latencyColors.fair;
+                else if (latency > 300) color = latencyColors.good;
+                
+                document.getElementById('latencyStatus').style.color = color;
+            }
+
+            // ✅ Latency Analysis Methods
+            resetLatencyStats() {
+                this.latencyMetrics = {
+                    speechToSpeechLatencies: [],
+                    asrLatencies: [],
+                    ttsLatencies: [],
+                    totalLatencies: [],
+                    currentMeasurement: null
+                };
+                console.log('📊 Latency stats reset');
+            }
+
+            displayLatencyBreakdown() {
+                if (!this.latencyMetrics.currentMeasurement) return;
+                
+                try {
+                    const measurement = this.latencyMetrics.currentMeasurement;
+                    const breakdown = {
+                        'ASR Processing': (measurement.asrEnd || 0) - (measurement.asrStart || 0),
+                        'AI Processing': (measurement.ttsStart || 0) - (measurement.asrEnd || 0),
+                        'TTS Generation': (measurement.ttsFirstAudio || 0) - (measurement.ttsStart || 0),
+                        'Network + Audio': (measurement.avatarSpeakStart || 0) - (measurement.ttsFirstAudio || 0),
+                        'Total Speech-to-Speech': (measurement.avatarSpeakStart || 0) - (measurement.userSpeechStart || 0)
+                    };
+
+                    console.log('📊 Latency Breakdown:');
+                    Object.entries(breakdown).forEach(([stage, time]) => {
+                        if (time > 0) {
+                            console.log(`   ${stage}: ${time}ms`);
+                        }
+                    });
+
+                    // Update real-time latency display
+                    this.updateLatencyDisplay(breakdown);
+
+                    // Update voice status with breakdown
+                    const total = breakdown['Total Speech-to-Speech'];
+                    if (total > 0) {
+                        this.updateVoiceStatus(`Response in ${total}ms`, 'processing');
+                    }
+                } catch (error) {
+                    console.warn('Error in latency breakdown:', error.message);
+                }
+            }
+
+            updateLatencyDisplay(breakdown) {
+                const total = breakdown['Total Speech-to-Speech'];
+                const asrTime = breakdown['ASR Processing'];
+                const aiTime = breakdown['AI Processing'];
+                const ttsTime = breakdown['TTS Generation'];
+
+                // Update current latency
+                document.getElementById('currentLatencyDisplay').textContent = `${total}ms`;
+                
+                // Calculate and update average
+                const avg = Math.round(this.latencyMetrics.speechToSpeechLatencies.reduce((a, b) => a + b, 0) / this.latencyMetrics.speechToSpeechLatencies.length);
+                document.getElementById('averageLatencyDisplay').textContent = `${avg}ms`;
+                
+                // Update best (minimum)
+                const best = Math.min(...this.latencyMetrics.speechToSpeechLatencies);
+                document.getElementById('bestLatencyDisplay').textContent = `${best}ms`;
+                
+                // Update count
+                document.getElementById('countLatencyDisplay').textContent = this.latencyMetrics.speechToSpeechLatencies.length;
+                
+                // Update breakdown
+                document.getElementById('asrLatencyDisplay').textContent = `${asrTime}ms`;
+                document.getElementById('aiLatencyDisplay').textContent = `${aiTime}ms`;
+                document.getElementById('ttsLatencyDisplay').textContent = `${ttsTime}ms`;
+
+                // Color coding for current latency
+                const currentElement = document.getElementById('currentLatencyDisplay');
+                if (total < 300) currentElement.style.color = '#27ae60';
+                else if (total < 500) currentElement.style.color = '#2ecc71';
+                else if (total < 1000) currentElement.style.color = '#f39c12';
+                else if (total < 2000) currentElement.style.color = '#e67e22';
+                else currentElement.style.color = '#e74c3c';
+            }
+
+            toggleLatencyDisplay() {
+                const overlay = document.getElementById('latencyOverlay');
+                const isVisible = overlay.style.display !== 'none';
+                
+                if (isVisible) {
+                    overlay.style.display = 'none';
+                    document.getElementById('toggleLatency').style.background = 'rgba(0, 0, 0, 0.7)';
+                } else {
+                    overlay.style.display = 'block';
+                    document.getElementById('toggleLatency').style.background = 'rgba(102, 126, 234, 0.8)';
+                }
+            }
+
+            // ✅ Network Latency Monitoring
+            startNetworkLatencyMonitoring() {
+                // Test endpoint availability first
+                this.testNetworkEndpoint().then(available => {
+                    if (available) {
+                        console.log('🌐 Network latency monitoring enabled');
+                        // Measure network latency every 10 seconds during active session
+                        this.networkLatencyInterval = setInterval(() => {
+                            this.measureNetworkLatency();
+                        }, 10000);
+                        
+                        // Initial measurement
+                        setTimeout(() => this.measureNetworkLatency(), 2000);
+                    } else {
+                        console.warn('🌐 Network latency endpoint unavailable - monitoring disabled');
+                    }
+                });
+            }
+
+            async testNetworkEndpoint() {
+                try {
+                    const response = await fetch('/api/measure-latency', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientSendTime: Date.now(),
+                            measurementType: 'test',
+                            sessionId: 'test',
+                            userAgent: navigator.userAgent
+                        })
+                    });
+                    return response.ok;
+                } catch (error) {
+                    return false;
+                }
+            }
+
+            async measureNetworkLatency() {
+                try {
+                    const clientSendTime = Date.now();
+                    
+                    const response = await fetch('/api/measure-latency', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            clientSendTime,
+                            measurementType: 'network_ping',
+                            sessionId: this.currentConversationId || 'unknown',
+                            userAgent: navigator.userAgent
+                        })
+                    });
+                    
+                    const clientReceiveTime = Date.now();
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const totalNetworkLatency = clientReceiveTime - clientSendTime;
+                        this.latencyMetrics.networkLatencies.push(totalNetworkLatency);
+                        
+                        // Keep only last 20 measurements
+                        if (this.latencyMetrics.networkLatencies.length > 20) {
+                            this.latencyMetrics.networkLatencies.shift();
+                        }
+                        
+                        console.log(`🌐 Network Latency: ${totalNetworkLatency}ms (Server: ${data.measurements.networkLatency}ms)`);
+                        
+                        // Update network status if latency display is visible
+                        if (document.getElementById('latencyOverlay').style.display !== 'none') {
+                            this.updateNetworkLatencyDisplay(totalNetworkLatency, data);
+                        }
+                    } else {
+                        console.warn('Network latency measurement failed:', data.error || 'Unknown error');
+                    }
+                    
+                } catch (error) {
+                    console.warn('🌐 Network latency measurement failed:', error.message);
+                    // Don't spam errors - just log once every 10 failures
+                    if (!this.networkErrorCount) this.networkErrorCount = 0;
+                    this.networkErrorCount++;
+                    if (this.networkErrorCount % 10 === 1) {
+                        console.warn(`🌐 Network latency endpoint unavailable (${this.networkErrorCount} failures). Continuing without network monitoring.`);
+                    }
+                }
+            }
+
+            updateNetworkLatencyDisplay(networkLatency, serverData) {
+                // Add network latency to breakdown if element exists
+                const breakdown = document.getElementById('latencyBreakdown');
+                let networkItem = document.getElementById('networkLatencyItem');
+                
+                if (!networkItem) {
+                    networkItem = document.createElement('div');
+                    networkItem.id = 'networkLatencyItem';
+                    networkItem.className = 'breakdown-item';
+                    networkItem.innerHTML = `
+                        <span class="breakdown-label">Network:</span>
+                        <span class="breakdown-value" id="networkLatencyValue">-</span>
+                    `;
+                    breakdown.appendChild(networkItem);
+                }
+                
+                document.getElementById('networkLatencyValue').textContent = `${networkLatency}ms`;
+                
+                // Color code network latency
+                const networkValue = document.getElementById('networkLatencyValue');
+                if (networkLatency < 50) networkValue.style.color = '#27ae60';
+                else if (networkLatency < 100) networkValue.style.color = '#2ecc71';
+                else if (networkLatency < 200) networkValue.style.color = '#f39c12';
+                else networkValue.style.color = '#e74c3c';
+            }
+
+            stopNetworkLatencyMonitoring() {
+                if (this.networkLatencyInterval) {
+                    clearInterval(this.networkLatencyInterval);
+                    this.networkLatencyInterval = null;
+                }
+            }
+
+            displayFinalLatencyStats() {
+                const metrics = this.latencyMetrics;
+                
+                if (metrics.speechToSpeechLatencies.length === 0) {
+                    console.log('📊 No latency measurements recorded');
+                    return;
+                }
+
+                const calculateStats = (arr) => {
+                    if (arr.length === 0) return { avg: 0, min: 0, max: 0, count: 0 };
+                    const sorted = [...arr].sort((a, b) => a - b);
+                    return {
+                        avg: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+                        min: sorted[0],
+                        max: sorted[sorted.length - 1],
+                        median: sorted[Math.floor(sorted.length / 2)],
+                        p95: sorted[Math.floor(sorted.length * 0.95)],
+                        count: arr.length
+                    };
+                };
+
+                const speechStats = calculateStats(metrics.speechToSpeechLatencies);
+                const asrStats = calculateStats(metrics.asrLatencies);
+                const ttsStats = calculateStats(metrics.ttsLatencies);
+
+                console.log('📊 Final Latency Statistics:');
+                console.log('🎯 Speech-to-Speech Latency:');
+                console.log(`   Average: ${speechStats.avg}ms`);
+                console.log(`   Median: ${speechStats.median}ms`);
+                console.log(`   Min: ${speechStats.min}ms`);
+                console.log(`   Max: ${speechStats.max}ms`);
+                console.log(`   95th Percentile: ${speechStats.p95}ms`);
+                console.log(`   Measurements: ${speechStats.count}`);
+
+                if (asrStats.count > 0) {
+                    console.log('🎤 ASR Latency:');
+                    console.log(`   Average: ${asrStats.avg}ms`);
+                    console.log(`   Min: ${asrStats.min}ms`);
+                    console.log(`   Max: ${asrStats.max}ms`);
+                }
+
+                if (ttsStats.count > 0) {
+                    console.log('🔊 TTS Latency:');
+                    console.log(`   Average: ${ttsStats.avg}ms`);
+                    console.log(`   Min: ${ttsStats.min}ms`);
+                    console.log(`   Max: ${ttsStats.max}ms`);
+                }
+
+                // Performance assessment
+                const avgLatency = speechStats.avg;
+                let performance = 'Excellent';
+                if (avgLatency > 2000) performance = 'Poor';
+                else if (avgLatency > 1000) performance = 'Fair';
+                else if (avgLatency > 500) performance = 'Good';
+                else if (avgLatency > 300) performance = 'Very Good';
+
+                console.log(`🏆 Overall Performance: ${performance} (${avgLatency}ms average)`);
+                
+                // Update final status
+                this.updateVoiceStatus(`Session complete - Avg: ${avgLatency}ms`, 'ready');
+            }
+
+            updateVoiceStatus(text, type) {
+                document.getElementById('voiceStatusText').textContent = text;
+                
+                const indicator = document.getElementById('voiceIndicator');
+                indicator.className = `voice-indicator ${type}`;
+                
+                // Auto-hide status after 3 seconds for non-critical messages
+                if (type === 'processing' || type === 'speaking') {
+                    setTimeout(() => {
+                        if (document.getElementById('voiceStatusText').textContent === text) {
+                            this.updateVoiceStatus('Ready to listen...', 'ready');
+                        }
+                    }, 3000);
+                }
+            }
+
+            isProduction() {
+                return window.location.hostname !== 'localhost' && 
+                       window.location.hostname !== '127.0.0.1';
+            }
+        }
+
+        // ✅ Initialize AWS-Ready DUIX Avatar
+        window.addEventListener('DOMContentLoaded', () => {
+            new AWSReadyDUIXAvatar();
+        });
+
+        // ✅ AWS Health Check Endpoint
+        if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+        }
+    </script>
+</body>
+</html> 

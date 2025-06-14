@@ -1,0 +1,103 @@
+# ✅ AWS-Compatible Docker Compose for DUIX AI Avatar
+version: '3.8'
+
+services:
+  duix-avatar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: duix-ai-avatar-latency
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - ENABLE_SSL_VALIDATION=true
+      # AWS Environment Variables (set these in production)
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DUIX_APP_ID=${DUIX_APP_ID:-1377185422953811968}
+      - DUIX_APP_KEY=${DUIX_APP_KEY:-4f3725b2-7d48-4ea7-8640-d1a11eb00f8c}
+      - TOKEN_EXPIRY=${TOKEN_EXPIRY:-1800}
+      # Production Security
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    volumes:
+      # Mount logs for debugging (remove in production)
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - duix-network
+    # Resource limits for AWS compatibility
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Optional: Nginx reverse proxy for production-like setup
+  nginx:
+    image: nginx:alpine
+    container_name: duix-nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - duix-avatar
+    restart: unless-stopped
+    networks:
+      - duix-network
+    profiles:
+      - production
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+networks:
+  duix-network:
+    driver: bridge
+    name: duix-ai-avatar-network
+
+# ============================================================================
+# Volume Configuration
+# ============================================================================
+volumes:
+  logs:
+    driver: local
+
+# ============================================================================
+# Production Deployment Commands:
+# 
+# Basic deployment:
+#   docker-compose up -d
+# 
+# With nginx reverse proxy:
+#   docker-compose --profile nginx up -d
+# 
+# With monitoring:
+#   docker-compose --profile monitoring up -d
+# 
+# Full production stack:
+#   docker-compose --profile nginx --profile monitoring up -d
+# 
+# View logs:
+#   docker-compose logs -f duix-avatar
+# 
+# Scale the application:
+#   docker-compose up -d --scale duix-avatar=3
+# 
+# Update deployment:
+#   docker-compose build && docker-compose up -d
+# ============================================================================ 
