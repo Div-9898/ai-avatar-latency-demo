@@ -7,7 +7,7 @@
     "start": "node server.js",
     "start:prod": "set NODE_ENV=production && node server.js",
     "dev": "set NODE_ENV=development && node server.js",
-    "build": "echo Static files ready for deployment",
+    "build": "npm ci --only=production",
     "test": "node -e \"console.log('Health check passed')\"",
     "aws:deploy": "npm run build && echo Ready for AWS deployment",
     "aws:logs": "echo Use AWS CloudWatch for production logs",
@@ -33,8 +33,8 @@
     "helmet": "^7.1.0"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   },
   "repository": {
     "type": "git",
