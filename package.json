@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:prod": "set NODE_ENV=production && node server.js",
-    "dev": "set NODE_ENV=development && node server.js",
+    "start:prod": "NODE_ENV=production node server.js",
+    "dev": "NODE_ENV=development node server.js",
     "build": "echo 'Build completed - static files ready'",
     "test": "node -e \"console.log('Health check passed')\"",
     "aws:deploy": "npm run build && echo Ready for AWS deployment",
