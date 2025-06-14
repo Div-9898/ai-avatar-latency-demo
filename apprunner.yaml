@@ -1,5 +1,5 @@
 version: 1.0
-runtime: nodejs18
+runtime: nodejs16
 build:
   commands:
     build:
@@ -7,7 +7,7 @@ build:
       - npm ci --only=production --no-audit --no-fund
       - echo "Build completed successfully"
 run:
-  runtime-version: 18
+  runtime-version: 16
   command: npm start
   network:
     port: 3000
